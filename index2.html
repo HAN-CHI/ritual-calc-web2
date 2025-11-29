@@ -1,0 +1,143 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>禮儀日期速查工具</title>
+    
+    <script src="https://cdn.jsdelivr.net/npm/dayjs@1.11.10/dayjs.min.js"></script>
+    
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/lunar-javascript/1.6.13/lunar.min.js"></script>
+
+    <style>
+        /* 樣式保持不變 */
+        body { font-family: 'Noto Sans TC', sans-serif; margin: 0; padding: 20px; background: #f4f4f9; }
+        .container { max-width: 600px; margin: auto; background: white; padding: 20px; border-radius: 8px; box-shadow: 0 0 10px rgba(0,0,0,0.1); }
+        h1 { text-align: center; color: #333; }
+        label, input, button { display: block; width: 100%; margin-bottom: 15px; font-size: 1.1em; }
+        input[type="date"] { padding: 10px; border: 1px solid #ccc; border-radius: 4px; box-sizing: border-box; }
+        button { background-color: #A0522D; color: white; padding: 12px; border: none; border-radius: 4px; cursor: pointer; font-weight: bold; }
+        button:hover { background-color: #8B4513; }
+        #results { margin-top: 30px; padding-top: 15px; border-top: 1px solid #eee; }
+        #results p { font-size: 1.1em; line-height: 1.8; border-bottom: 1px dashed #eee; padding: 5px 0; margin: 0; }
+        #results span { font-weight: bold; color: #cc0000; }
+        #results p:last-child { border-bottom: none; }
+        .lunar-leap { color: #008080; font-weight: bold; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>亡者日期計算</h1>
+        
+        <label for="death-date">亡故日期 (國曆)：</label>
+        <input type="date" id="death-date">
+
+        <label for="birth-date">出生日期 (國曆)：</label>
+        <input type="date" id="birth-date">
+        
+        <button id="calculate-btn">開始計算</button>
+
+        <div id="results">
+            <h2>計算結果</h2>
+            <p><strong>亡者農曆生日：</strong> <span id="result-lunar-birth">--</span></p>
+            <p>
+                <strong>百日 (第100天)：</strong> 
+                <span id="result-hundred-solar">--</span> (國曆)
+                <span id="result-hundred-lunar">--</span> (農曆)
+            </p>
+            <p><strong>國曆對年 (滿一年)：</strong> <span id="result-anniversary">--</span></p>
+            <p><strong>農曆對年：</strong> <span id="result-lunar-anniversary">--</span></p>
+        </div>
+    </div>
+    
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            
+            // 檢查點：確認函式庫是否成功載入 (Solar/Lunar 是 lunar-javascript 提供的全域物件)
+            if (typeof window.dayjs === 'undefined' || typeof window.Solar === 'undefined') {
+                alert("系統錯誤：計算工具載入失敗，請檢查網路連線！");
+                return;
+            }
+
+            const calculateBtn = document.getElementById('calculate-btn');
+            
+            calculateBtn.addEventListener('click', function() {
+                const deathInput = document.getElementById('death-date').value;
+                const birthInput = document.getElementById('birth-date').value;
+
+                if (!deathInput || !birthInput) {
+                    alert("請輸入完整的日期！");
+                    return;
+                }
+
+                const dParts = deathInput.split('-');
+                const bParts = birthInput.split('-');
+                const dYear = parseInt(dParts[0]), dMonth = parseInt(dParts[1]), dDay = parseInt(dParts[2]);
+                const bYear = parseInt(bParts[0]), bMonth = parseInt(bParts[1]), bDay = parseInt(bParts[2]);
+
+                // --- 1. 計算亡者農曆生日 ---
+                try {
+                    const solarBirth = Solar.fromYmd(bYear, bMonth, bDay);
+                    const lunarBirth = solarBirth.getLunar();
+                    const shengXiao = lunarBirth.getYearShengXiao(); 
+                    
+                    document.getElementById('result-lunar-birth').textContent = 
+                        lunarBirth.getYearInChinese() + "年 " + 
+                        lunarBirth.getMonthInChinese() + "月 " + 
+                        lunarBirth.getDayInChinese() + " (" + shengXiao + "年)";
+                } catch (e) {
+                    document.getElementById('result-lunar-birth').textContent = "日期錯誤";
+                }
+
+                // --- 2. 計算百日 (國曆 + 農曆) ---
+                const hundred = dayjs(deathInput).add(99, 'day');
+                const hYear = hundred.year(), hMonth = hundred.month() + 1, hDay = hundred.date();
+                
+                try {
+                    const solarHundred = Solar.fromYmd(hYear, hMonth, hDay); 
+                    const lunarHundred = solarHundred.getLunar();
+                    
+                    const lunarMonthText = lunarHundred.getMonthInChinese() + (lunarHundred.isLeap() ? '<span class="lunar-leap">(閏)</span>' : '') + '月';
+                    
+                    document.getElementById('result-hundred-solar').textContent = hundred.format('YYYY年M月D日');
+                    document.getElementById('result-hundred-lunar').innerHTML = 
+                        lunarHundred.getYearInChinese() + "年 " + 
+                        lunarMonthText + " " + 
+                        lunarHundred.getDayInChinese();
+                } catch (e) {
+                    document.getElementById('result-hundred-solar').textContent = hundred.format('YYYY年M月D日');
+                    document.getElementById('result-hundred-lunar').textContent = "轉換錯誤";
+                }
+
+                // --- 3. 計算國曆對年 ---
+                const anniversary = dayjs(deathInput).add(1, 'year');
+                document.getElementById('result-anniversary').textContent = anniversary.format('YYYY年M月D日');
+
+                // --- 4. 計算農曆對年 ---
+                try {
+                    const solarDeath = Solar.fromYmd(dYear, dMonth, dDay);
+                    const lunarDeath = solarDeath.getLunar();
+                    
+                    const nextLunarYear = lunarDeath.getYear() + 1;
+                    const nextLunarMonth = lunarDeath.getMonth();
+                    const nextLunarDay = lunarDeath.getDay();
+                    
+                    // 明確傳遞原農曆日期的閏月狀態，確保次年查找正確
+                    const nextLunarDate = Lunar.fromYmd(nextLunarYear, nextLunarMonth, nextLunarDay, lunarDeath.isLeap());
+                    const nextSolarDate = nextLunarDate.getSolar();
+
+                    const lunarMonthText = nextLunarDate.getMonthInChinese() + (nextLunarDate.isLeap() ? '<span class="lunar-leap">(閏)</span>' : '') + '月';
+
+                    document.getElementById('result-lunar-anniversary').innerHTML = 
+                        nextSolarDate.toYmd() + " (國曆) / " + 
+                        nextLunarDate.getYearInChinese() + "年 " + 
+                        lunarMonthText + " " + 
+                        nextLunarDate.getDayInChinese() + " (農曆)";
+                } catch (e) {
+                    document.getElementById('result-lunar-anniversary').textContent = "無法計算 (請檢查日期)";
+                }
+            });
+        });
+    </script>
+</body>
+</html>
